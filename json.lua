@@ -56,14 +56,17 @@ local function encode_nil(val)
 end
 
 
-local function encode_table(val, stack)
+local function encode_table(val, state, opt)
   local res = {}
-  stack = stack or {}
+  local newline = opt.pretty and "\n" or ""
+  local space = opt.pretty and " " or ""
+  local ind = opt.pretty and string.rep(opt.indent, state.indent_level) or ""
+  local indm1 = opt.pretty and string.rep(opt.indent, state.indent_level-1) or ""
 
   -- Circular reference?
-  if stack[val] then error("circular reference") end
+  if state.stack[val] then error("circular reference") end
 
-  stack[val] = true
+  state.stack[val] = true
 
   if rawget(val, 1) ~= nil or next(val) == nil then
     -- Treat as array -- check keys are valid and it is not sparse
@@ -77,23 +80,40 @@ local function encode_table(val, stack)
     if n ~= #val then
       error("invalid table: sparse array")
     end
+    state.indent_level = state.indent_level + 1
     -- Encode
     for i, v in ipairs(val) do
-      table.insert(res, encode(v, stack))
+      local pre = type(val[i]) == "table" and (newline .. ind) or ""
+      table.insert(res, pre .. encode(v, state, opt))
     end
-    stack[val] = nil
-    return "[" .. table.concat(res, ",") .. "]"
+    state.indent_level = state.indent_level - 1
+    state.stack[val] = nil
+    local suf = type(val[#val]) == "table" and (newline .. indm1) or ""
+    return "[" .. table.concat(res, ",") .. suf .. "]"
 
   else
     -- Treat as an object
-    for k, v in pairs(val) do
-      if type(k) ~= "string" then
-        error("invalid table: mixed or invalid key types")
+    state.indent_level = state.indent_level + 1
+    local written = {}
+    if opt.pretty then
+      for i, k in ipairs(opt.keys) do
+        if val[k] then
+          table.insert(res, ind .. encode(k, state, opt) .. ":" .. space .. encode(val[k], state, opt))
+          written[k] = true
+        end
       end
-      table.insert(res, encode(k, stack) .. ":" .. encode(v, stack))
     end
-    stack[val] = nil
-    return "{" .. table.concat(res, ",") .. "}"
+    for k, v in pairs(val) do
+      if not written[k] then
+        if type(k) ~= "string" then
+          error("invalid table: mixed or invalid key types")
+        end
+        table.insert(res, ind .. encode(k, state, opt) .. ":" .. space .. encode(v, state, opt))
+      end
+    end
+    state.indent_level = state.indent_level - 1
+    state.stack[val] = nil
+    return "{" .. newline .. table.concat(res, "," .. newline) .. newline .. indm1 ..  "}"
   end
 end
 
@@ -121,18 +141,26 @@ local type_func_map = {
 }
 
 
-encode = function(val, stack)
+encode = function(val, state, opt)
   local t = type(val)
   local f = type_func_map[t]
   if f then
-    return f(val, stack)
+    return f(val, state, opt)
   end
   error("unexpected type '" .. t .. "'")
 end
 
 
-function json.encode(val)
-  return ( encode(val) )
+function json.encode(val, opt)
+  local state = {
+    indent_level = 1,
+    stack = {}
+  }
+  opt = opt or {}
+  opt.pretty = opt.pretty or false
+  opt.indent = opt.indent or "  "
+  opt.keys = opt.keys or {}
+  return ( encode(val, state, opt) )
 end
 
 
