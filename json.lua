@@ -94,23 +94,32 @@ local function encode_table(val, state, opt)
   else
     -- Treat as an object
     state.indent_level = state.indent_level + 1
-    local written = {}
+
     if opt.pretty then
-      for i, k in ipairs(opt.keys) do
-        if val[k] then
-          table.insert(res, ind .. encode(k, state, opt) .. ":" .. space .. encode(val[k], state, opt))
-          written[k] = true
-        end
-      end
-    end
-    for k, v in pairs(val) do
-      if not written[k] then
+      local keys = {}
+      for k, v in pairs(val) do
         if type(k) ~= "string" then
           error("invalid table: mixed or invalid key types")
         end
-        table.insert(res, ind .. encode(k, state, opt) .. ":" .. space .. encode(v, state, opt))
+        table.insert(keys, k)
+      end
+      table.sort(keys, function(a, b)
+        local oa, ob = opt.key_order[a] or math.huge, opt.key_order[b] or math.huge
+        if oa ~= ob then return oa < ob end
+        return a < b
+      end)
+      for i, k in ipairs(keys) do
+        table.insert(res, ind .. encode(k, state, opt) .. ":" .. space .. encode(val[k], state, opt))
+      end
+    else
+      for k, v in pairs(val) do
+        if type(k) ~= "string" then
+          error("invalid table: mixed or invalid key types")
+        end
+        table.insert(res, encode(k, state, opt) .. ":" .. encode(v, state, opt))
       end
     end
+
     state.indent_level = state.indent_level - 1
     state.stack[val] = nil
     return "{" .. newline .. table.concat(res, "," .. newline) .. newline .. indm1 ..  "}"
@@ -160,6 +169,11 @@ function json.encode(val, opt)
   opt.pretty = opt.pretty or false
   opt.indent = opt.indent or "  "
   opt.keys = opt.keys or {}
+  opt.key_order = {}
+  for i, k in ipairs(opt.keys) do
+    opt.key_order[k] = i
+  end
+
   return ( encode(val, state, opt) )
 end
 

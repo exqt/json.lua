@@ -2,11 +2,26 @@ a fork of [rxi/json.lua](https://github.com/rxi/json.lua)
 
 ## What's added
 - Pretty `encode`
-- Prioritizing keys
+- Prioritizing & sorting keys
 
 ## Example
 ```lua
-local json = require 'json'
+local o = { d = 4, c = 2, first = 1, a = '123', second = 2}
+print(json.encode(o, {
+  pretty = true,
+  keys = {'first', 'second'}
+}))
+```
+```json
+{
+  "first": 1,
+  "second": 2,
+  "a": "123",
+  "c": 2,
+  "d": 4
+}
+```
+```lua
 local level = {
   name = "test level",
   layers = {
@@ -75,8 +90,8 @@ print(json.encode(level, {
           "x": 1,
           "y": 2,
           "opt": {
-            "size": "big",
-            "color": [1,0,0]
+            "color": [1,0,0],
+            "size": "big"
           }
         },
         {
@@ -84,8 +99,8 @@ print(json.encode(level, {
           "x": 3,
           "y": 2,
           "opt": {
-            "size": "small",
-            "color": [1,1,1]
+            "color": [1,1,1],
+            "size": "small"
           }
         }
       ]
